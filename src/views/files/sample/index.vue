@@ -92,8 +92,6 @@
           </el-table-column>
       </el-table>
       <div class="flex items-center justify-center mt-5">
-          <!-- <el-pagination layout="prev, pager, next" :total="total" :current-page="currentPage"
-              :page-size="pageSize" @current-change="getData" /> -->
               <el-pagination
                   layout="prev, pager, next, jumper"
                   :total="total"
@@ -123,18 +121,45 @@
           :table-data="verifyTableData"
           @view="handleViewImage"
         />
+        
+        <!-- 新增设备选择对话框 -->
+        <el-dialog v-model="machineSelectDialogVisible" title="选择下发设备" width="30%">
+          <el-table 
+            :data="machineList" 
+            style="width: 100%; max-height: 300px; overflow-y: auto;" 
+            @selection-change="handleSelectionChange"
+          >
+            <el-table-column type="selection" width="55" />
+            <el-table-column prop="machineName" label="设备名称" align="center" />
+            <el-table-column prop="isConnected" label="状态" align="center">
+              <template #default="{ row }">
+                <el-tag :type="row.isConnected === 1 ? 'success' : 'danger'">
+                  {{ row.isConnected === 1 ? '已连接' : '未连接' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+          <template #footer>
+            <span class="dialog-footer">
+              <el-button @click="machineSelectDialogVisible = false">取消</el-button>
+              <el-button type="primary" @click="confirmMachineSelection">
+                确定
+              </el-button>
+            </span>
+          </template>
+        </el-dialog>
   </el-card>
 </template>
 
 <script setup>
-import { reactive, ref , computed, onMounted, onBeforeUnmount } from 'vue';
-import { getSampleList, getSamplebList, deleteSample,getallnames } from '@/apis/sample';
+import { reactive, ref , onMounted, onBeforeUnmount } from 'vue';
+import { getSampleList, deleteSample, getallnames } from '@/apis/sample';
 import { Picture } from '@element-plus/icons-vue';
 import PublishDialog from '../compoments/PublishDialog.vue';
 import { ElMessage } from 'element-plus';
 import axios from '@/axios';
 import VerifyResultDialog from '@/components/VerifyResultDialog.vue';
-import { getAllMachineIsConnected } from '@/apis/machine'; // 新增导入
+import { getMachineData } from '@/apis/machine';
 
 // 管理员状态管理
 const isAdmin = ref(localStorage.getItem('isAdmin') === 'true')
@@ -153,7 +178,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('storage', checkAdminStatus)
 })
-
 
 // 选项数据
 const brandOptions = ref([])
@@ -182,6 +206,52 @@ const previewImage = ref('');
 // 下发对话框引用
 const publishDialog = ref(null);
 
+// 新增设备选择相关状态
+const machineSelectDialogVisible = ref(false);
+const machineList = ref([]);
+const selectedMachines = ref([]);
+
+// 获取设备列表
+const fetchMachineList = async () => {
+  try {
+    const res = await getMachineData();
+    if (res.data && res.data.code === 1) {
+      machineList.value = res.data.data || [];
+      machineSelectDialogVisible.value = true;
+    } else {
+      ElMessage.error('获取设备列表失败');
+    }
+  } catch (error) {
+    console.error('获取设备列表失败:', error);
+    ElMessage.error('获取设备列表失败');
+  }
+};
+
+// 处理设备选择变化
+const handleSelectionChange = (selection) => {
+  selectedMachines.value = selection;
+};
+
+// 确认设备选择
+const confirmMachineSelection = () => {
+  if (selectedMachines.value.length === 0) {
+    ElMessage.warning('请至少选择一台设备');
+    return;
+  }
+  
+  // 检查是否有已连接的设备
+  const hasConnectedDevice = selectedMachines.value.some(
+    device => device.isConnected === 1
+  );
+  
+  if (!hasConnectedDevice) {
+    ElMessage.warning('您选择的设备均未连接，请先连接设备');
+    return;
+  }
+  
+  machineSelectDialogVisible.value = false;
+  startVerification();
+};
 
 // 获取选项数据
 const fetchOptions = async () => {
@@ -235,13 +305,8 @@ const handlePreview = (row) => {
       return;
   }
 
-  // 这里需要根据实际接口替换图片路径处理逻辑
-  // 示例：假设后端需要文件路径参数访问图片
-  //previewImage.value = `/api/file/preview?path=${encodeURIComponent("C:\\project\\datase\\重新分类\\"+row.fileName)}`;
   const fullPath = `C:/project/dataset/重新分类/${row.fileName}`;
-  //console.log(fullPath);
   previewImage.value = `/api/file/preview?path=${encodeURIComponent(fullPath)}`;
-
   dialogVisible.value = true;
 };
 
@@ -258,12 +323,6 @@ const handleDelete = (id) => {
       });
 };
 
-
-
-// 初始加载数据
-//getData();
-
-
 // 验证相关状态
 const verifyDialogVisible = ref(false);
 const verifyTableData = ref({
@@ -277,82 +336,97 @@ const verifyTableData = ref({
 const isVerifying = ref(false);
 
 // 处理下发验证
-const handleVerify = async () => {
+const handleVerify = () => {
+  // 先获取设备列表
+  fetchMachineList().catch(error => {
+    ElMessage.error('获取设备列表失败: ' + error.message);
+  });
+};
+
+// 开始验证（在选择了设备后调用）
+const startVerification = async () => {
   try {
     isVerifying.value = true;
     
     // 获取当前系统时间作为验证开始时间
     const verifyStartTime = new Date().getTime();
     
-    // 新增：检查设备连接状态
-    const connectionRes = await getAllMachineIsConnected();
-    if (connectionRes.data.code !== 1) {
-      throw new Error('获取设备状态失败');
-    }
-    
-    // 检查是否有已连接的设备
-    const hasConnectedDevice = connectionRes.data.data.some(
-      device => device.isConnected === 1
-    );
-    
-    if (!hasConnectedDevice) {
-      ElMessage.warning('没有已连接的设备，请先连接设备');
-      isVerifying.value = false;
-      return;
-    }
-
     ElMessage.info('正在验证，请稍候...');
-
-    // 启动验证
-    await axios.get('/start/verify');
     
-    setTimeout(async () => {
+    // 提取选中的设备ID
+    const machineIds = selectedMachines.value.map(m => m.machineID);
+    
+    // 启动验证，传递设备ID
+    await axios.get('/start/verify', {
+      params: { machineIds: machineIds.join(',') }
+    });
+    
+    // 设置轮询参数
+    let pollCount = 0;
+    const maxPollCount = 30; // 最大轮询次数（30秒超时）
+    const pollInterval = 1000; // 轮询间隔1秒
+    
+    // 轮询函数 - 检查验证结果是否准备好
+    const pollForResults = async () => {
       try {
-        // 获取最新的验证记录
+        pollCount++;
+        if (pollCount > maxPollCount) {
+          ElMessage.error('验证超时，请检查设备状态');
+          isVerifying.value = false;
+          return;
+        }
+        
+        // 获取最新验证记录
         const newestRes = await axios.get('/verify/newest');
         if (newestRes.data.code !== 1 || !newestRes.data.data?.id) {
-          throw new Error('获取验证ID失败');
+          // 如果没有有效结果，继续轮询
+          setTimeout(pollForResults, pollInterval);
+          return;
         }
-
-        // 检查验证记录的生成时间是否在验证开始之后（允许1秒误差）
-        const verifyEndTime = new Date(newestRes.data.data.verifyTime).getTime();
-        const timeDifference = verifyEndTime - verifyStartTime;
         
-        if (timeDifference < -10000) { // 允许10秒的误差
-          throw new Error('验证失败');
+        // 检查验证记录的生成时间是否在验证开始之后
+        const verifyEndTime = new Date(newestRes.data.data.verifyTime).getTime();
+        if (verifyEndTime > verifyStartTime) {
+          // 获取验证详情
+          const detailRes = await axios.get(`/verify/detail?id=${newestRes.data.data.id}`);
+          if (detailRes.data.code !== 1) {
+            throw new Error('获取详情失败');
+          }
+          
+          // 处理结果数据
+          const defectRates = calculateDefectRates(detailRes.data.data);
+
+          verifyTableData.value = {
+            summary: {
+              verifyTime: newestRes.data.data.verifyTime,
+              successRate: newestRes.data.data.successRate,
+              defectRates: defectRates
+            },
+            details: detailRes.data.data.map(item => ({
+              fileName: item.fileName,
+              result: item.verifyResult,
+              brandName: item.brandName,
+              defectName: item.defectName,
+              fullPath: `C:/project/dataset/重新分类/${item.fileName}`
+            }))
+          };
+
+          verifyDialogVisible.value = true;
+          isVerifying.value = false;
+        } else {
+          // 结果尚未准备好，继续轮询
+          setTimeout(pollForResults, pollInterval);
         }
-
-        const detailRes = await axios.get(`/verify/detail?id=${newestRes.data.data.id}`);
-        if (detailRes.data.code !== 1) {
-          throw new Error('获取详情失败');
-        }
-
-        const defectRates = calculateDefectRates(detailRes.data.data);
-
-        verifyTableData.value = {
-          summary: {
-            verifyTime: newestRes.data.data.verifyTime,
-            successRate: newestRes.data.data.successRate,
-            defectRates: defectRates
-          },
-          details: detailRes.data.data.map(item => ({
-            fileName: item.fileName,
-            result: item.verifyResult,
-            brandName: item.brandName,
-            defectName: item.defectName,
-            fullPath: `C:/project/dataset/重新分类/${item.fileName}`
-          }))
-        };
-
-        verifyDialogVisible.value = true;
       } catch (error) {
         ElMessage.error(error.message || '验证失败');
-      } finally {
         isVerifying.value = false;
       }
-    }, 3000);
+    };
+    
+    // 开始轮询
+    setTimeout(pollForResults, pollInterval);
   } catch (error) {
-    ElMessage.error('验证请求失败');
+    ElMessage.error('验证请求失败: ' + error.message);
     isVerifying.value = false;
   }
 };
@@ -376,12 +450,9 @@ const calculateDefectRates = (data) => {
   }));
 };
 
-
-
 // 修改后的查看图片方法
 const handleViewImage = (row) => {
   if (row.fullPath) {
-    //console.log(row.fullPath);
     previewImage.value = `/api/file/preview?path=${encodeURIComponent(row.fullPath)}`;
     dialogVisible.value = true;
   } else {
