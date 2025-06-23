@@ -456,6 +456,7 @@ const startVerification = async () => {
     
     // 提取选中的设备ID
     const mids = selectedMachines.value.map(m => m.id);
+    //提取选中设备的machineID
     const machineIds = selectedMachines.value.map(m => m.machineID);
     
     
