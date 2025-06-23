@@ -64,8 +64,6 @@
                   @click="handleVerify" 
                   :loading="isVerifying"
                  class="mr-4">下发 </el-button>
-                  <PublishDialog ref="publishDialog" />
-                  <!-- <el-button type="primary" class="mr-4">查看验证效果</el-button> -->
               </el-form-item>
           </el-form>
       </div>
@@ -115,12 +113,102 @@
           </div>
       </el-dialog>
 
-        <!-- 新增验证结果对话框组件 -->
-        <VerifyResultDialog 
-          v-model:visible="verifyDialogVisible"
-          :table-data="verifyTableData"
-          @view="handleViewImage"
-        />
+        <!-- 验证结果对话框 -->
+        <el-dialog v-model="verifyDialogVisible" title="验证结果" width="80%" class="verify-result-dialog">
+          <div v-if="allResults.length > 0" style="max-height: 70vh; overflow-y: auto;">
+            <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+              <el-select v-model="currentMachineId" @change="switchMachine" style="width: 200px;">
+                <el-option
+                  v-for="result in allResults"
+                  :key="result.machineID"
+                  :label="`设备 ${result.machineID}`"
+                  :value="result.machineID"
+                />
+              </el-select>
+              
+              <div class="verification-summary">
+                <div class="summary-item">
+                  <span class="summary-label">设备ID:</span>
+                  <span class="summary-value">{{ currentResult.machineID }}</span>
+                </div>
+                <div class="summary-item">
+                  <span class="summary-label">验证时间:</span>
+                  <span class="summary-value">{{ formatDateTime(currentResult.verifyTime) }}</span>
+                </div>
+                <div class="summary-item">
+                  <span class="summary-label">验证成功率:</span>
+                  <span class="summary-value success-rate">{{ (currentResult.successRate * 100).toFixed(2) }}%</span>
+                </div>
+              </div>
+            </div>
+            
+            <div v-if="currentResult">
+              <!-- 缺陷通过率表格 - 紧凑布局 -->
+              <div class="compact-defect-table">
+                <div class="defect-header">
+                  <div class="defect-cell" style="flex: 3;">缺陷类型</div>
+                  <div class="defect-cell" style="flex: 2;">通过率</div>
+                  <div class="defect-cell" style="flex: 5;">进度</div>
+                </div>
+                
+                <div 
+                  v-for="(defect, index) in currentResult.defectRates" 
+                  :key="index"
+                  class="defect-row"
+                  :class="{
+                    'high-rate': defect.rate >= 0.8,
+                    'medium-rate': defect.rate >= 0.5 && defect.rate < 0.8,
+                    'low-rate': defect.rate < 0.5
+                  }"
+                >
+                  <div class="defect-cell" style="flex: 3; font-weight: 500;">{{ defect.defect }}</div>
+                  <div class="defect-cell" style="flex: 2; font-weight: bold;">{{ (defect.rate * 100).toFixed(2) }}%</div>
+                  <div class="defect-cell" style="flex: 5;">
+                    <div class="progress-container">
+                      <div 
+                        class="progress-bar" 
+                        :style="{ width: `${defect.rate * 100}%` }"
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 验证详情表格 -->
+              <el-table 
+                :data="currentResult.details" 
+                style="width: 100%; margin-top: 15px;"
+                height="300"
+              >
+                <el-table-column label="编号" align="center" width="60">
+                  <template #default="{ $index }">
+                    {{ $index + 1 }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="brandName" label="品牌" align="center" />
+                <el-table-column prop="defectName" label="缺陷类型" align="center" />
+                <el-table-column prop="result" label="验证结果" align="center" width="120">
+                  <template #default="{ row }">
+                    <div 
+                      class="result-tag"
+                      :class="row.result === 1 ? 'pass-tag' : 'fail-tag'"
+                    >
+                      {{ row.result === 1 ? '通过' : '未通过' }}
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" align="center" width="120">
+                  <template #default="{ row }">
+                    <el-button type="primary" size="small" plain @click="handleViewImage(row)">查看图片</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </div>
+          <div v-else>
+            暂无验证结果
+          </div>
+        </el-dialog>
         
         <!-- 新增设备选择对话框 -->
         <el-dialog v-model="machineSelectDialogVisible" title="选择下发设备" width="30%">
@@ -131,9 +219,9 @@
           >
             <el-table-column type="selection" width="55" />
             <el-table-column prop="machineName" label="设备名称" align="center" />
-            <el-table-column prop="isConnected" label="状态" align="center">
+            <el-table-column prop="isConnected" label="状态" align="center" width="100">
               <template #default="{ row }">
-                <el-tag :type="row.isConnected === 1 ? 'success' : 'danger'">
+                <el-tag :type="row.isConnected === 1 ? 'success' : 'danger'" size="small">
                   {{ row.isConnected === 1 ? '已连接' : '未连接' }}
                 </el-tag>
               </template>
@@ -152,13 +240,11 @@
 </template>
 
 <script setup>
-import { reactive, ref , onMounted, onBeforeUnmount } from 'vue';
+import { reactive, ref , onMounted, onBeforeUnmount, computed } from 'vue';
 import { getSampleList, deleteSample, getallnames } from '@/apis/sample';
 import { Picture } from '@element-plus/icons-vue';
-import PublishDialog from '../compoments/PublishDialog.vue';
 import { ElMessage } from 'element-plus';
 import axios from '@/axios';
-import VerifyResultDialog from '@/components/VerifyResultDialog.vue';
 import { getMachineData } from '@/apis/machine';
 
 // 管理员状态管理
@@ -202,9 +288,6 @@ const pageSize = ref(14);
 // 图片预览相关
 const dialogVisible = ref(false);
 const previewImage = ref('');
-
-// 下发对话框引用
-const publishDialog = ref(null);
 
 // 新增设备选择相关状态
 const machineSelectDialogVisible = ref(false);
@@ -325,15 +408,33 @@ const handleDelete = (id) => {
 
 // 验证相关状态
 const verifyDialogVisible = ref(false);
-const verifyTableData = ref({
-  summary: {
-    verifyTime: '',
-    successRate: 0,
-    defectRates: []
-  },
-  details: []
-});
 const isVerifying = ref(false);
+
+// 新增验证结果相关状态
+const allResults = ref([]); // 所有设备的验证结果
+const currentMachineId = ref(null); // 当前选中的设备ID
+const currentResult = ref(null); // 当前显示的验证结果
+
+// 计算当前选择的设备名称
+const currentMachineName = computed(() => {
+  if (!currentMachineId.value) return '';
+  const machine = machineList.value.find(m => m.machineID == currentMachineId.value);
+  return machine ? machine.machineName : `设备 ${currentMachineId.value}`;
+});
+
+// 格式化日期时间
+const formatDateTime = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).replace(/\//g, '-');
+};
 
 // 处理下发验证
 const handleVerify = () => {
@@ -354,16 +455,18 @@ const startVerification = async () => {
     ElMessage.info('正在验证，请稍候...');
     
     // 提取选中的设备ID
+    const mids = selectedMachines.value.map(m => m.id);
     const machineIds = selectedMachines.value.map(m => m.machineID);
+    
     
     // 启动验证，传递设备ID
     await axios.get('/start/verify', {
-      params: { machineIds: machineIds.join(',') }
+      params: { machineIds: mids.join(',') }
     });
     
     // 设置轮询参数
     let pollCount = 0;
-    const maxPollCount = 30; // 最大轮询次数（30秒超时）
+    const maxPollCount = 60; // 最大轮询次数（60秒超时）
     const pollInterval = 1000; // 轮询间隔1秒
     
     // 轮询函数 - 检查验证结果是否准备好
@@ -376,32 +479,42 @@ const startVerification = async () => {
           return;
         }
         
-        // 获取最新验证记录
-        const newestRes = await axios.get('/verify/newest');
-        if (newestRes.data.code !== 1 || !newestRes.data.data?.id) {
+        // 获取所有设备的最新验证记录
+        const allNewestRes = await axios.get('/verify/allNewest');
+        if (allNewestRes.data.code !== 1 || !allNewestRes.data.data?.length) {
           // 如果没有有效结果，继续轮询
           setTimeout(pollForResults, pollInterval);
           return;
         }
         
-        // 检查验证记录的生成时间是否在验证开始之后
-        const verifyEndTime = new Date(newestRes.data.data.verifyTime).getTime();
-        if (verifyEndTime > verifyStartTime) {
-          // 获取验证详情
-          const detailRes = await axios.get(`/verify/detail?id=${newestRes.data.data.id}`);
+        // 检查是否有本次验证的结果
+        const currentResults = allNewestRes.data.data.filter(result => {
+          const resultTime = new Date(result.verifyTime).getTime();
+          return resultTime > verifyStartTime && machineIds.includes(result.machineID);
+        });
+        
+        if (currentResults.length === 0) {
+          // 结果尚未准备好，继续轮询
+          setTimeout(pollForResults, pollInterval);
+          return;
+        }
+        
+        // 获取所有设备的详细结果
+        allResults.value = [];
+        for (const result of currentResults) {
+          const detailRes = await axios.get(`/verify/detail?id=${result.id}`);
           if (detailRes.data.code !== 1) {
-            throw new Error('获取详情失败');
+            continue;
           }
           
-          // 处理结果数据
           const defectRates = calculateDefectRates(detailRes.data.data);
-
-          verifyTableData.value = {
-            summary: {
-              verifyTime: newestRes.data.data.verifyTime,
-              successRate: newestRes.data.data.successRate,
-              defectRates: defectRates
-            },
+          
+          allResults.value.push({
+            machineID: result.machineID,
+            verifyTime: result.verifyTime,
+            successRate: result.successRate,
+            id: result.id,
+            defectRates: defectRates,
             details: detailRes.data.data.map(item => ({
               fileName: item.fileName,
               result: item.verifyResult,
@@ -409,16 +522,19 @@ const startVerification = async () => {
               defectName: item.defectName,
               fullPath: `C:/project/dataset/重新分类/${item.fileName}`
             }))
-          };
-
-          verifyDialogVisible.value = true;
-          isVerifying.value = false;
-        } else {
-          // 结果尚未准备好，继续轮询
-          setTimeout(pollForResults, pollInterval);
+          });
         }
+        
+        // 设置默认选中的设备
+        if (allResults.value.length > 0) {
+          currentMachineId.value = allResults.value[0].machineID;
+          currentResult.value = allResults.value[0];
+        }
+        
+        verifyDialogVisible.value = true;
+        isVerifying.value = false;
       } catch (error) {
-        ElMessage.error(error.message || '验证失败');
+        ElMessage.error(error.message || '获取验证结果失败');
         isVerifying.value = false;
       }
     };
@@ -428,6 +544,16 @@ const startVerification = async () => {
   } catch (error) {
     ElMessage.error('验证请求失败: ' + error.message);
     isVerifying.value = false;
+  }
+};
+
+// 切换设备查看不同结果
+const switchMachine = (machineId) => {
+  const result = allResults.value.find(r => r.machineID == machineId);
+  if (result) {
+    currentResult.value = result;
+  } else {
+    ElMessage.warning(`未找到设备 ${machineId} 的验证结果`);
   }
 };
 
@@ -497,5 +623,121 @@ const handleViewImage = (row) => {
 
 :deep(.el-pagination__editor) {
   width: 50px;  /* 调整整个跳转编辑区宽度 */
+}
+
+/* 验证结果对话框固定高度 */
+.verify-result-dialog .el-dialog__body {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* 新增样式用于验证结果表格 */
+.verification-summary {
+  display: flex;
+  background-color: #f8fafc;
+  border-radius: 4px;
+  padding: 8px 15px;
+}
+
+.summary-item {
+  display: flex;
+  align-items: center;
+  margin-right: 20px;
+}
+
+.summary-label {
+  color: #606266;
+  font-size: 14px;
+  margin-right: 5px;
+}
+
+.summary-value {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.success-rate {
+  color: #e6a23c;
+  font-weight: bold;
+}
+
+/* 紧凑型缺陷表格样式 */
+.compact-defect-table {
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  overflow: hidden;
+}
+
+.defect-header {
+  display: flex;
+  background-color: #f5f7fa;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.defect-row {
+  display: flex;
+  padding: 10px 12px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.defect-row:last-child {
+  border-bottom: none;
+}
+
+.defect-cell {
+  padding: 0 5px;
+}
+
+/* 进度条样式 */
+.progress-container {
+  width: 100%;
+  height: 16px;
+  background-color: #ebeef5;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: 8px;
+}
+
+/* 不同通过率的颜色分类 */
+.high-rate .progress-bar {
+  background-color: #67c23a;
+}
+
+.medium-rate .progress-bar {
+  background-color: #e6a23c;
+}
+
+.low-rate .progress-bar {
+  background-color: #f56c6c;
+}
+
+/* 自定义结果标签 */
+.result-tag {
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* .pass-tag {
+  background-color: #e8f4ff;
+  color: #409eff;
+} */
+.pass-tag {
+  background-color: #e1f3d8; /* 浅绿色背景 */
+  color: #67c23a;            /* 深绿色文字 */
+  border: 1px solid #c2e7b0; /* 浅绿色边框 */
+}
+.fail-tag {
+  background-color: #ffeded;
+  color: #f56c6c;
 }
 </style>
