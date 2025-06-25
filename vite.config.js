@@ -29,6 +29,7 @@ export default defineConfig({
       '/api':{
         //target:'http://192.168.0.110:8881/'
         target:'http://localhost:8881/'
+        //target:'http://192.168.0.111:8881/'
         //target:'http://192.168.0.106:8881/'
         //target:'http://192.168.0.108:8881/'
       }

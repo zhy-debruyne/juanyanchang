@@ -1,149 +1,167 @@
 <template>
   <el-card shadow="never" class="border-1">
-      <div>
-          <el-form :inline="true" :model="form" class="demo-form-inline">
-              <!-- 品牌名称多选下拉 -->
-              <el-form-item label="品牌名称">
-                <el-select
-                  v-model="form.brands"
-                  multiple
-                  filterable
-                  collapse-tags
-                  placeholder="请选择品牌"
-                  style="width: 200px"
-                >
-                  <el-option
-                    v-for="item in brandOptions"
-                    :key="item"
-                    :label="item"
-                    :value="item"
-                  />
-                </el-select>
-              </el-form-item>
-              <!-- 缺陷类型多选下拉 -->
-              <el-form-item label="缺陷类型">
-                <el-select
-                  v-model="form.defects"
-                  multiple
-                  filterable
-                  collapse-tags
-                  placeholder="请选择缺陷"
-                  style="width: 200px"
-                >
-                  <el-option
-                    v-for="item in defectOptions"
-                    :key="item"
-                    :label="item"
-                    :value="item"
-                  />
-                </el-select>
-              </el-form-item>
-              <!-- 缺陷等级多选下拉 -->
-              <el-form-item label="缺陷等级">
-                <el-select
-                  v-model="form.grades"
-                  multiple
-                  collapse-tags
-                  placeholder="请选择等级"
-                  style="width: 200px"
-                >
-                  <el-option
-                    v-for="item in gradeOptions"
-                    :key="item"
-                    :label="item"
-                    :value="item"
-                  />
-                </el-select>
-              </el-form-item>
-              <el-form-item>
-                <el-button type="primary" @click="handleQuery" class="mr-4" plain>
-                  查询
-                </el-button>
-                <el-button 
-                  type="primary" 
-                  @click="handleVerify" 
-                  :loading="isVerifying"
-                 class="mr-4">下发 </el-button>
-              </el-form-item>
-          </el-form>
-      </div>
-      <el-divider />
-      <el-table :data="tableData" height="630px">
-          <el-table-column label="编号" align="center" width="60px">
-              <template #default="scope">
-                  {{ (currentPage - 1) * pageSize + scope.$index + 1 }}
-              </template>
-          </el-table-column>
-          <el-table-column prop="brandName" label="品牌名称" align="center" />
-          <el-table-column prop="defectName" label="缺陷类型" align="center" />
-          <el-table-column prop="defectGrade" label="缺陷等级" align="center" />
-          <el-table-column label="操作" align="center">
-              <template #default="scope">
-                  <el-button type="primary" size="small" text @click="handlePreview(scope.row)">查看图片</el-button>
-                  <el-popconfirm title="您确定要删除吗?" confirm-button-text="确定" cancel-button-text="取消"
-                      @confirm="handleDelete(scope.row.sampleID)" :disabled="!isAdmin">
-                      <template #reference>
-                          <el-button type="danger" size="small" text :disabled="!isAdmin">删除</el-button>
-                      </template>
-                  </el-popconfirm>
-              </template>
-          </el-table-column>
-      </el-table>
-      <div class="flex items-center justify-center mt-5">
-              <el-pagination
-                  layout="prev, pager, next, jumper"
-                  :total="total"
-                  :current-page="currentPage"
-                  :page-size="pageSize"
-                  @current-change="getData"
-                />
-      </div>
-      <!-- 新增图片预览对话框 -->
-      <el-dialog v-model="dialogVisible" title="图片预览" width="60%">
-          <div class="image-preview">
-              <el-image :src="previewImage" :preview-src-list="[previewImage]" fit="contain"
-                  style="width: 100%; height: 60vh;">
-                  <template #error>
-                      <div class="image-error">
-                          <el-icon><Picture /></el-icon>
-                          <span>图片加载失败</span>
-                      </div>
-                  </template>
-              </el-image>
-          </div>
-      </el-dialog>
-
-        <!-- 验证结果对话框 -->
-        <el-dialog v-model="verifyDialogVisible" title="验证结果" width="80%" class="verify-result-dialog">
-          <div v-if="allResults.length > 0" style="max-height: 70vh; overflow-y: auto;">
-            <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
-              <el-select v-model="currentMachineId" @change="switchMachine" style="width: 200px;">
-                <el-option
-                  v-for="result in allResults"
-                  :key="result.machineID"
-                  :label="`设备 ${result.machineID}`"
-                  :value="result.machineID"
-                />
-              </el-select>
-              
-              <div class="verification-summary">
-                <div class="summary-item">
-                  <span class="summary-label">设备ID:</span>
-                  <span class="summary-value">{{ currentResult.machineID }}</span>
-                </div>
-                <div class="summary-item">
-                  <span class="summary-label">验证时间:</span>
-                  <span class="summary-value">{{ formatDateTime(currentResult.verifyTime) }}</span>
-                </div>
-                <div class="summary-item">
-                  <span class="summary-label">验证成功率:</span>
-                  <span class="summary-value success-rate">{{ (currentResult.successRate * 100).toFixed(2) }}%</span>
-                </div>
-              </div>
+    <div>
+      <el-form :inline="true" :model="form" class="demo-form-inline">
+        <!-- 品牌名称多选下拉 -->
+        <el-form-item label="品牌名称">
+          <el-select
+            v-model="form.brands"
+            multiple
+            filterable
+            collapse-tags
+            placeholder="请选择品牌"
+            style="width: 200px"
+          >
+            <el-option
+              v-for="item in brandOptions"
+              :key="item"
+              :label="item"
+              :value="item"
+            />
+          </el-select>
+        </el-form-item>
+        <!-- 缺陷类型多选下拉 -->
+        <el-form-item label="缺陷类型">
+          <el-select
+            v-model="form.defects"
+            multiple
+            filterable
+            collapse-tags
+            placeholder="请选择缺陷"
+            style="width: 200px"
+          >
+            <el-option
+              v-for="item in defectOptions"
+              :key="item"
+              :label="item"
+              :value="item"
+            />
+          </el-select>
+        </el-form-item>
+        <!-- 缺陷等级多选下拉 -->
+        <el-form-item label="缺陷等级">
+          <el-select
+            v-model="form.grades"
+            multiple
+            collapse-tags
+            placeholder="请选择等级"
+            style="width: 200px"
+          >
+            <el-option
+              v-for="item in gradeOptions"
+              :key="item"
+              :label="item"
+              :value="item"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleQuery" class="mr-4" plain>
+            查询
+          </el-button>
+          <el-button 
+            type="primary" 
+            @click="handleVerify" 
+            :loading="isVerifying"
+            class="mr-4"
+          >
+            下发
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </div>
+    <el-divider />
+    <el-table :data="tableData" height="630px">
+      <el-table-column label="编号" align="center" width="60px">
+        <template #default="scope">
+          {{ (currentPage - 1) * pageSize + scope.$index + 1 }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="brandName" label="品牌名称" align="center" />
+      <el-table-column prop="defectName" label="缺陷类型" align="center" />
+      <el-table-column prop="defectGrade" label="缺陷等级" align="center" />
+      <el-table-column label="操作" align="center">
+        <template #default="scope">
+          <el-button type="primary" size="small" text @click="handlePreview(scope.row)">
+            查看图片
+          </el-button>
+          <el-popconfirm 
+            title="您确定要删除吗?" 
+            confirm-button-text="确定" 
+            cancel-button-text="取消"
+            @confirm="handleDelete(scope.row.sampleID)" 
+            :disabled="!isAdmin"
+          >
+            <template #reference>
+              <el-button type="danger" size="small" text :disabled="!isAdmin">
+                删除
+              </el-button>
+            </template>
+          </el-popconfirm>
+        </template>
+      </el-table-column>
+    </el-table>
+    <div class="flex items-center justify-center mt-5">
+      <el-pagination
+        layout="prev, pager, next, jumper"
+        :total="total"
+        :current-page="currentPage"
+        :page-size="pageSize"
+        @current-change="getData"
+      />
+    </div>
+    <!-- 新增图片预览对话框 -->
+    <el-dialog v-model="dialogVisible" title="图片预览" width="60%">
+      <div class="image-preview">
+        <el-image 
+          :src="previewImage" 
+          :preview-src-list="[previewImage]" 
+          fit="contain"
+          style="width: 100%; height: 60vh;"
+        >
+          <template #error>
+            <div class="image-error">
+              <el-icon><Picture /></el-icon>
+              <span>图片加载失败</span>
             </div>
-            
-            <div v-if="currentResult">
-              <!-- 缺陷通过率表格 - 紧凑布局 -->
+          </template>
+        </el-image>
+      </div>
+    </el-dialog>
+    <!-- 验证结果对话框 -->
+    <el-dialog v-model="verifyDialogVisible" title="验证结果" width="90%" class="verify-result-dialog">
+      <div v-if="allResults.length > 0" style="max-height: 70vh; overflow-y: auto;">
+        <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+          <el-select v-model="currentMachineId" @change="switchMachine" style="width: 200px;">
+            <el-option
+              v-for="result in allResults"
+              :key="result.machineID"
+              :label="`设备 ${result.machineID}`"
+              :value="result.machineID"
+            />
+          </el-select>
+          
+          <div class="verification-summary">
+            <div class="summary-item">
+              <span class="summary-label">设备ID:</span>
+              <span class="summary-value">{{ currentResult.machineID }}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">验证时间:</span>
+              <span class="summary-value">{{ formatDateTime(currentResult.verifyTime) }}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">验证成功率:</span>
+              <span class="summary-value success-rate">{{ (currentResult.successRate * 100).toFixed(2) }}%</span>
+            </div>
+          </div>
+        </div>
+        
+        <div v-if="currentResult" class="result-container">
+          <!-- 缺陷通过率和详细数据左右分栏 -->
+          <div class="result-columns">
+            <!-- 左侧：缺陷通过率 -->
+            <div class="result-column left-column">
               <div class="compact-defect-table">
                 <div class="defect-header">
                   <div class="defect-cell" style="flex: 3;">缺陷类型</div>
@@ -173,12 +191,14 @@
                   </div>
                 </div>
               </div>
-
-              <!-- 验证详情表格 -->
+            </div>
+            
+            <!-- 右侧：验证详情表格 -->
+            <div class="result-column right-column">
               <el-table 
                 :data="currentResult.details" 
-                style="width: 100%; margin-top: 15px;"
-                height="300"
+                style="width: 100%;"
+                height="600"
               >
                 <el-table-column label="编号" align="center" width="60">
                   <template #default="{ $index }">
@@ -199,48 +219,51 @@
                 </el-table-column>
                 <el-table-column label="操作" align="center" width="120">
                   <template #default="{ row }">
-                    <el-button type="primary" size="small" plain @click="handleViewImage(row)">查看图片</el-button>
+                    <el-button type="primary" size="small" plain @click="handleViewImage(row)">
+                      查看图片
+                    </el-button>
                   </template>
                 </el-table-column>
               </el-table>
             </div>
           </div>
-          <div v-else>
-            暂无验证结果
-          </div>
-        </el-dialog>
-        
-        <!-- 新增设备选择对话框 -->
-        <el-dialog v-model="machineSelectDialogVisible" title="选择下发设备" width="30%">
-          <el-table 
-            :data="machineList" 
-            style="width: 100%; max-height: 300px; overflow-y: auto;" 
-            @selection-change="handleSelectionChange"
-          >
-            <el-table-column type="selection" width="55" />
-            <el-table-column prop="machineName" label="设备名称" align="center" />
-            <el-table-column prop="isConnected" label="状态" align="center" width="100">
-              <template #default="{ row }">
-                <el-tag :type="row.isConnected === 1 ? 'success' : 'danger'" size="small">
-                  {{ row.isConnected === 1 ? '已连接' : '未连接' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-          </el-table>
-          <template #footer>
-            <span class="dialog-footer">
-              <el-button @click="machineSelectDialogVisible = false">取消</el-button>
-              <el-button type="primary" @click="confirmMachineSelection">
-                确定
-              </el-button>
-            </span>
+        </div>
+      </div>
+      <div v-else>
+        暂无验证结果
+      </div>
+    </el-dialog>
+    
+    <!-- 新增设备选择对话框 -->
+    <el-dialog v-model="machineSelectDialogVisible" title="选择下发设备" width="30%">
+      <el-table 
+        :data="machineList" 
+        style="width: 100%; max-height: 300px; overflow-y: auto;" 
+        @selection-change="handleSelectionChange"
+      >
+        <el-table-column type="selection" width="55" />
+        <el-table-column prop="machineName" label="设备名称" align="center" />
+        <el-table-column prop="isConnected" label="状态" align="center" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.isConnected === 1 ? 'success' : 'danger'" size="small">
+              {{ row.isConnected === 1 ? '已连接' : '未连接' }}
+            </el-tag>
           </template>
-        </el-dialog>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="machineSelectDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmMachineSelection">
+            确定
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
-
 <script setup>
-import { reactive, ref , onMounted, onBeforeUnmount, computed } from 'vue';
+import { reactive, ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { getSampleList, deleteSample, getallnames } from '@/apis/sample';
 import { Picture } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -248,27 +271,28 @@ import axios from '@/axios';
 import { getMachineData } from '@/apis/machine';
 
 // 管理员状态管理
-const isAdmin = ref(localStorage.getItem('isAdmin') === 'true')
+const isAdmin = ref(localStorage.getItem('isAdmin') === 'true');
 
 // 监听storage变化
 const checkAdminStatus = () => {
-  isAdmin.value = localStorage.getItem('isAdmin') === 'true'
-}
+  isAdmin.value = localStorage.getItem('isAdmin') === 'true';
+};
 
 onMounted(() => {
-  window.addEventListener('storage', checkAdminStatus)
-  fetchOptions()
-  getData()
-})
+  window.addEventListener('storage', checkAdminStatus);
+  fetchOptions();
+  getData();
+});
 
 onBeforeUnmount(() => {
-  window.removeEventListener('storage', checkAdminStatus)
-})
+  window.removeEventListener('storage', checkAdminStatus);
+});
 
 // 选项数据
-const brandOptions = ref([])
-const defectOptions = ref([])
-const gradeOptions = ref([])
+const brandOptions = ref([]);
+const defectOptions = ref([]);
+const gradeOptions = ref([]);
+
 // 表单数据
 const form = reactive({
   brands: [],
@@ -339,41 +363,40 @@ const confirmMachineSelection = () => {
 // 获取选项数据
 const fetchOptions = async () => {
   try {
-    const { data } = await getallnames()
-    brandOptions.value = data.brandNames || []
-    defectOptions.value = data.defectNames || []
-    gradeOptions.value = data.defectGrades || []
+    const { data } = await getallnames();
+    brandOptions.value = data.brandNames || [];
+    defectOptions.value = data.defectNames || [];
+    gradeOptions.value = data.defectGrades || [];
   } catch (error) {
-    console.error('获取选项数据失败:', error)
+    console.error('获取选项数据失败:', error);
   }
-}
+};
+
 // 修改后的获取数据方法
 const getData = (p = null) => {
   if (typeof p === 'number') {
-    currentPage.value = p
+    currentPage.value = p;
   }
-
-    getSampleList(
-      currentPage.value,
-      pageSize.value,
-      form.brands,
-      form.defects,
-      form.grades
-    )
+  getSampleList(
+    currentPage.value,
+    pageSize.value,
+    form.brands,
+    form.defects,
+    form.grades
+  )
     .then(res => {
       if (res.data.code) {
-            tableData.value = res.data.data.rows;
-            total.value = res.data.data.total;
-        } else {
-            console.error('Invalid data structure returned from server:', res);
-            ElMessage.error('查询失败');
-        }
-
+        tableData.value = res.data.data.rows;
+        total.value = res.data.data.total;
+      } else {
+        console.error('Invalid data structure returned from server:', res);
+        ElMessage.error('查询失败');
+      }
     })
     .catch(error => {
-      console.error('查询失败:', error)
-    })
-}
+      console.error('查询失败:', error);
+    });
+};
 
 // 处理查询按钮点击事件
 const handleQuery = () => {
@@ -384,10 +407,9 @@ const handleQuery = () => {
 // 处理图片预览
 const handlePreview = (row) => {
   if (!row.fileName) {
-      ElMessage.warning('该记录暂无图片');
-      return;
+    ElMessage.warning('该记录暂无图片');
+    return;
   }
-
   const fullPath = `C:/project/dataset/重新分类/${row.fileName}`;
   previewImage.value = `/api/file/preview?path=${encodeURIComponent(fullPath)}`;
   dialogVisible.value = true;
@@ -397,13 +419,13 @@ const handlePreview = (row) => {
 const handleDelete = (id) => {
   deleteSample(id)
     .then(res => {
-          ElMessage.success('删除成功');
-          getData();
-      })
+      ElMessage.success('删除成功');
+      getData();
+    })
     .catch(error => {
-          console.error('Error deleting sample:', error);
-          ElMessage.error('删除失败');
-      });
+      console.error('Error deleting sample:', error);
+      ElMessage.error('删除失败');
+    });
 };
 
 // 验证相关状态
@@ -458,7 +480,6 @@ const startVerification = async () => {
     const mids = selectedMachines.value.map(m => m.id);
     //提取选中设备的machineID
     const machineIds = selectedMachines.value.map(m => m.machineID);
-    
     
     // 启动验证，传递设备ID
     await axios.get('/start/verify', {
@@ -570,7 +591,6 @@ const calculateDefectRates = (data) => {
     stat.total++;
     if (item.verifyResult === 1) stat.pass++;
   });
-
   return Array.from(defectStats).map(([defect, stat]) => ({
     defect,
     rate: stat.pass / stat.total
@@ -587,7 +607,6 @@ const handleViewImage = (row) => {
   }
 };
 </script>
-
 <style scoped>
 .image-preview {
   display: flex;
@@ -662,11 +681,38 @@ const handleViewImage = (row) => {
   font-weight: bold;
 }
 
-/* 紧凑型缺陷表格样式 */
-.compact-defect-table {
+/* 左右分栏容器 */
+.result-container {
+  width: 100%;
+}
+
+.result-columns {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.result-column {
+  box-sizing: border-box;
   border: 1px solid #ebeef5;
   border-radius: 4px;
-  margin-bottom: 15px;
+  overflow: hidden;
+}
+
+.left-column {
+  flex: 0 0 35%; /* 左侧固定35%宽度 */
+}
+
+.right-column {
+  flex: 1; /* 右侧自适应 */
+}
+
+/* 紧凑型缺陷表格样式 */
+.compact-defect-table {
+  width: 100%;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  margin-bottom: 0;
   overflow: hidden;
 }
 
@@ -728,17 +774,25 @@ const handleViewImage = (row) => {
   font-weight: 500;
 }
 
-/* .pass-tag {
-  background-color: #e8f4ff;
-  color: #409eff;
-} */
 .pass-tag {
   background-color: #e1f3d8; /* 浅绿色背景 */
   color: #67c23a;            /* 深绿色文字 */
   border: 1px solid #c2e7b0; /* 浅绿色边框 */
 }
+
 .fail-tag {
   background-color: #ffeded;
   color: #f56c6c;
+}
+
+/* 响应式布局：小屏幕下堆叠显示 */
+@media (max-width: 1024px) {
+  .result-columns {
+    flex-direction: column;
+  }
+  
+  .left-column, .right-column {
+    flex: 1;
+  }
 }
 </style>
